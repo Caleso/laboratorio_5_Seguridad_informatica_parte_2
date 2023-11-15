@@ -1,50 +1,48 @@
-#LABORATORIO_5
-#NOMBRES: CATALINA LEDESMA Y DENISSE TORRES
+#LABORATORIO_3
+#NOMBRES: CATALINA LEDESMA
 
 import socket
-import pyDes
+from Crypto.Cipher import DES3, AES
+from Crypto.Random import get_random_bytes
+# instalar pip install pycryptodome
 
-MensajeEntrada = open('mensajeentrada.txt','r') #Se abre el txt
-Textito = MensajeEntrada.readlines()[0] #Extrae el texto ingresado
-MensajeEntrada.close()
+def generate_aes_key():
+    return get_random_bytes(16)
 
-#Encriptado DES
-DES = pyDes.des("DESCRYPT", pyDes.CBC, "\0\0\0\0\0\0\0\0", pad=None, padmode=pyDes.PAD_PKCS5)
-Encriptado_DES = DES.encrypt(Textito)
+def encrypt_3des(key, data):
+    cipher = DES3.new(key, DES3.MODE_ECB)
+    return cipher.encrypt(data)
 
-#Asignacion de valores
-Valor_P = 173
-Valor_Q = 50
-Valor_A = int(input("Ingrese valor A secreto: "))
-Valor_Ax = str((Valor_Q**Valor_A)%Valor_P)
+def decrypt_aes(key, data):
+    cipher = AES.new(key, AES.MODE_ECB)
+    return cipher.decrypt(data)
 
-#Conexion
-Host = "LocalHost"
-Puerto = 8000
-Server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-Server.bind((Host, Puerto))
-Server.listen(1)
-print("Servidor en espera")
-Conexion, Addr = Server.accept()
+def save_to_file(data, filename):
+    with open(filename, 'wb') as file:
+        file.write(data)
 
-for i in range(1):
-    Conexion.send(Valor_Ax.encode(encoding="ascii", errors="ignore"))
-    Bx = Conexion.recv(1024)
-    Bx = int(Bx.decode(encoding = "ascii", errors = "ignore"))
-    KeyA = (Bx**(Valor_A)) % Valor_P
-    KeyB = Conexion.recv(1024)
-    KeyB = int(KeyB.decode(encoding = "ascii", errors = "ignore"))
-    Recibido = open('mensajerecibido.txt','w')
-    
-    #Si las llaves son iguales procede al desencriptado
-    if KeyA == KeyB:
-        Desencriptado_DES = DES.decrypt(Encriptado_DES)
-        Envio = str(Desencriptado_DES)
-        Conexion.send(Envio.encode(encoding = "ascii", errors = "ignore"))
-        print ("Decrypted ", Desencriptado_DES)
-        Recibido.write("Decrypted: %r" %Desencriptado_DES)
+def main():
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_address = ('localhost', 12345)
+    server_socket.bind(server_address)
+    server_socket.listen(1)
 
-    #Si no son iguales procede al encriptado
-    else:
-        print ("Encrypted:", Encriptado_DES)
-        Recibido.write("Encrypted: %r" %Encriptado_DES)
+    print('Esperando conexión...')
+    client_socket, client_address = server_socket.accept()
+    print('Conexión establecida desde:', client_address)
+
+    # Generar clave AES y enviar al cliente
+    aes_key = generate_aes_key()
+    client_socket.sendall(aes_key)
+
+    # Recibir mensaje cifrado por 3DES y desencriptar
+    encrypted_message = client_socket.recv(1024)
+    decrypted_message = decrypt_aes(aes_key, encrypted_message)
+
+
+    save_to_file(decrypted_message, 'mensajerecibido.txt')
+    client_socket.close()
+    server_socket.close()
+
+if __name__ == "__main__":
+    main()
